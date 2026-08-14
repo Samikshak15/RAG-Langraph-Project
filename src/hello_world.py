@@ -11,7 +11,7 @@ Setup:
          OPENAI_API_KEY=sk-...
 
 Run:
-    python src/openai_hello_world.py
+    python src/hello_world.py
 """
 
 from __future__ import annotations
