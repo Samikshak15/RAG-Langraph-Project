@@ -66,7 +66,7 @@ export default function CandidateRAGPanel({ selectedCandidate }) {
   return (
     <Card sx={{ mb: 3, borderRadius: 3, boxShadow: "0 4px 20px rgba(0,0,0,0.05)", border: "1px solid #eef0f4" }}>
       <CardContent sx={{ p: 3 }}>
-        <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 2 }}>
+        <Stack direction="row" spacing={1.5} sx={{ alignItems: "center", mb: 2 }}>
           <Box sx={{ p: 1, borderRadius: 2, bgcolor: "#f3e8ff", color: "#7e22ce" }}>
             <AutoAwesomeIcon />
           </Box>
@@ -109,7 +109,7 @@ export default function CandidateRAGPanel({ selectedCandidate }) {
             </Button>
           </Stack>
 
-          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" gap={0.5}>
+          <Stack direction="row" spacing={1} flexWrap="wrap" gap={0.5} sx={{ alignItems: "center" }}>
             <Typography variant="caption" color="text.secondary" fontWeight={600}>
               Quick Presets:
             </Typography>
@@ -142,8 +142,8 @@ export default function CandidateRAGPanel({ selectedCandidate }) {
           <Box sx={{ mt: 3 }}>
             <Card variant="outlined" sx={{ borderRadius: 2.5, bgcolor: "#fafafa", mb: 3 }}>
               <CardContent sx={{ p: 3 }}>
-                <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
-                  <Stack direction="row" spacing={1} alignItems="center">
+                <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", mb: 2 }}>
+                  <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
                     <AutoAwesomeIcon color="primary" fontSize="small" />
                     <Typography variant="subtitle2" fontWeight={700} color="primary.main">
                       AI Synthesized Answer for {response.candidate_name}
@@ -195,7 +195,7 @@ export default function CandidateRAGPanel({ selectedCandidate }) {
                       }}
                     >
                       <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                        <Stack direction="row" alignItems="center" spacing={2} sx={{ width: "100%", pr: 2 }}>
+                        <Stack direction="row" spacing={2} sx={{ alignItems: "center", width: "100%", pr: 2 }}>
                           <Chip
                             label={`${source.score ?? 0}/10`}
                             color={getScoreColor(source.score ?? 0)}

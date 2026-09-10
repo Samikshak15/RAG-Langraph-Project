@@ -52,7 +52,7 @@ export default function CandidateSelector({
   return (
     <Card sx={{ mb: 3, borderRadius: 3, boxShadow: "0 4px 20px rgba(0,0,0,0.05)", border: "1px solid #eef0f4" }}>
       <CardContent sx={{ p: 3 }}>
-        <Stack direction={{ xs: "column", md: "row" }} spacing={3} alignItems={{ md: "center" }} justifyContent="space-between">
+        <Stack direction={{ xs: "column", md: "row" }} spacing={3} sx={{ alignItems: { md: "center" }, justifyContent: "space-between" }}>
           <Box sx={{ flexGrow: 1, maxWidth: { md: 550 } }}>
             <Typography variant="subtitle2" fontWeight={700} color="text.secondary" sx={{ mb: 1, textTransform: "uppercase", letterSpacing: 0.5 }}>
               Select Candidate Identity
@@ -64,34 +64,37 @@ export default function CandidateSelector({
               isOptionEqualToValue={(opt, val) => String(opt.user_id) === String(val.user_id)}
               value={selectedCandidate}
               onChange={(_, newValue) => onSelectCandidate(newValue)}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  placeholder="Search candidate name or enter user_id (e.g. 2071, Sejal)..."
-                  variant="outlined"
-                  size="small"
-                  InputProps={{
-                    ...params.InputProps,
-                    startAdornment: (
-                      <>
-                        <PersonOutlinedIcon color="action" sx={{ mr: 1, fontSize: 20 }} />
-                        {params.InputProps.startAdornment}
-                      </>
-                    ),
-                    endAdornment: (
-                      <>
-                        {loading ? <CircularProgress color="inherit" size={20} /> : null}
-                        {params.InputProps.endAdornment}
-                      </>
-                    ),
-                  }}
-                />
-              )}
+              renderInput={(params) => {
+                const { InputProps, ...otherParams } = params;
+                return (
+                  <TextField
+                    {...otherParams}
+                    placeholder="Search candidate name or enter user_id (e.g. 2071, Sejal)..."
+                    variant="outlined"
+                    size="small"
+                    InputProps={{
+                      ...InputProps,
+                      startAdornment: (
+                        <>
+                          <PersonOutlinedIcon color="action" sx={{ mr: 1, fontSize: 20 }} />
+                          {InputProps?.startAdornment}
+                        </>
+                      ),
+                      endAdornment: (
+                        <>
+                          {loading ? <CircularProgress color="inherit" size={20} /> : null}
+                          {InputProps?.endAdornment}
+                        </>
+                      ),
+                    }}
+                  />
+                );
+              }}
               renderOption={(props, option) => {
                 const { key, ...optionProps } = props;
                 return (
                   <Box component="li" key={key} {...optionProps} sx={{ py: 1, px: 2 }}>
-                    <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ width: "100%" }}>
+                    <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", width: "100%" }}>
                       <Box>
                         <Typography variant="body2" fontWeight={600}>
                           {option.name}
@@ -115,7 +118,7 @@ export default function CandidateSelector({
           </Box>
 
           {selectedCandidate && (
-            <Stack direction="row" spacing={1.5} alignItems="center">
+            <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
               <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: "#f8f9fc", border: "1px solid #eef0f4", minWidth: 200 }}>
                 <Typography variant="caption" color="text.secondary" fontWeight={600}>
                   Active Candidate
@@ -123,7 +126,7 @@ export default function CandidateSelector({
                 <Typography variant="body2" fontWeight={700} color="primary.main">
                   {selectedCandidate.name}
                 </Typography>
-                <Stack direction="row" spacing={1} alignItems="center" mt={0.5}>
+                <Stack direction="row" spacing={1} sx={{ alignItems: "center", mt: 0.5 }}>
                   <Chip
                     icon={<StorageOutlinedIcon style={{ fontSize: 12 }} />}
                     label={`ID: ${selectedCandidate.user_id}`}

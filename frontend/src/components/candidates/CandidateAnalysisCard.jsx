@@ -38,8 +38,8 @@ export default function CandidateAnalysisCard({ selectedCandidate }) {
   return (
     <Card sx={{ mb: 3, borderRadius: 3, boxShadow: "0 4px 20px rgba(0,0,0,0.05)", border: "1px solid #eef0f4" }}>
       <CardContent sx={{ p: 3 }}>
-        <Stack direction={{ xs: "column", sm: "row" }} alignItems={{ sm: "center" }} justifyContent="space-between" spacing={2} sx={{ mb: 2 }}>
-          <Stack direction="row" alignItems="center" spacing={1.5}>
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ alignItems: { sm: "center" }, justifyContent: "space-between", mb: 2 }}>
+          <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
             <Box sx={{ p: 1, borderRadius: 2, bgcolor: "#e0f2fe", color: "#0284c7" }}>
               <AnalyticsOutlinedIcon />
             </Box>
@@ -74,7 +74,7 @@ export default function CandidateAnalysisCard({ selectedCandidate }) {
         {report && (
           <Box sx={{ mt: 3 }}>
             <Grid container spacing={2} sx={{ mb: 3 }}>
-              <Grid size={{ xs: 12, sm: 4 }}>
+              <Grid item xs={12} sm={4}>
                 <Box sx={{ p: 2, borderRadius: 2, bgcolor: "#f8fafc", border: "1px solid #e2e8f0", textAlign: "center" }}>
                   <Typography variant="caption" color="text.secondary" fontWeight={600}>
                     OVERALL SCORE
@@ -85,7 +85,7 @@ export default function CandidateAnalysisCard({ selectedCandidate }) {
                 </Box>
               </Grid>
 
-              <Grid size={{ xs: 12, sm: 4 }}>
+              <Grid item xs={12} sm={4}>
                 <Box sx={{ p: 2, borderRadius: 2, bgcolor: "#f8fafc", border: "1px solid #e2e8f0", textAlign: "center" }}>
                   <Typography variant="caption" color="text.secondary" fontWeight={600}>
                     PERFORMANCE TREND
@@ -97,7 +97,7 @@ export default function CandidateAnalysisCard({ selectedCandidate }) {
                 </Box>
               </Grid>
 
-              <Grid size={{ xs: 12, sm: 4 }}>
+              <Grid item xs={12} sm={4}>
                 <Box sx={{ p: 2, borderRadius: 2, bgcolor: "#f8fafc", border: "1px solid #e2e8f0", textAlign: "center" }}>
                   <Typography variant="caption" color="text.secondary" fontWeight={600}>
                     SESSIONS ANALYZED
@@ -121,10 +121,10 @@ export default function CandidateAnalysisCard({ selectedCandidate }) {
             )}
 
             <Grid container spacing={3}>
-              <Grid size={{ xs: 12, md: 6 }}>
+              <Grid item xs={12} md={6}>
                 <Card variant="outlined" sx={{ borderRadius: 2, height: "100%" }}>
                   <CardContent sx={{ p: 2.5 }}>
-                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
+                    <Stack direction="row" spacing={1} sx={{ alignItems: "center", mb: 1.5 }}>
                       <ErrorOutlineOutlinedIcon color="error" fontSize="small" />
                       <Typography variant="subtitle2" fontWeight={700}>
                         Repeated Wrong Answers ({report.repeated_wrong_answers?.length || 0})
@@ -152,10 +152,10 @@ export default function CandidateAnalysisCard({ selectedCandidate }) {
                 </Card>
               </Grid>
 
-              <Grid size={{ xs: 12, md: 6 }}>
+              <Grid item xs={12} md={6}>
                 <Card variant="outlined" sx={{ borderRadius: 2, height: "100%" }}>
                   <CardContent sx={{ p: 2.5 }}>
-                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
+                    <Stack direction="row" spacing={1} sx={{ alignItems: "center", mb: 1.5 }}>
                       <WarningAmberIcon color="warning" fontSize="small" />
                       <Typography variant="subtitle2" fontWeight={700}>
                         Recurring Technical Gaps ({report.recurring_technical_gaps?.length || 0})
@@ -186,7 +186,7 @@ export default function CandidateAnalysisCard({ selectedCandidate }) {
 
             {report.topics_to_work_on && report.topics_to_work_on.length > 0 && (
               <Box sx={{ mt: 3, p: 2.5, borderRadius: 2, bgcolor: "#f8fafc", border: "1px solid #e2e8f0" }}>
-                <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
+                <Stack direction="row" spacing={1} sx={{ alignItems: "center", mb: 1.5 }}>
                   <LocalLibraryOutlinedIcon color="primary" fontSize="small" />
                   <Typography variant="subtitle2" fontWeight={700}>
                     Recommended Topics to Improve

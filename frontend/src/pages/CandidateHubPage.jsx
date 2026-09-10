@@ -44,7 +44,7 @@ export default function CandidateHubPage() {
         direction={{ xs: "column", sm: "row" }}
         sx={{ justifyContent: "space-between", alignItems: { sm: "center" }, mb: 3 }}
       >
-        <Stack direction="row" alignItems="center" spacing={1.5}>
+        <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
           <Box sx={{ p: 1, borderRadius: 2, bgcolor: "primary.main", color: "#ffffff" }}>
             <BadgeOutlinedIcon />
           </Box>
