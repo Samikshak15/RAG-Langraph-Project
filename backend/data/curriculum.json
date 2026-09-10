@@ -1,0 +1,196 @@
+{
+  "topics": [
+    {
+      "topic": "Introduction to Generative AI",
+      "subtopics": [
+        "AI vs ML vs DL vs Generative AI",
+        "History of Generative AI",
+        "Generative vs predictive AI",
+        "LLM providers and models"
+      ]
+    },
+    {
+      "topic": "Tokenisation fundamentals",
+      "subtopics": [
+        "Large Language Models",
+        "BPE tokenisation",
+        "Context window",
+        "Next-token prediction"
+      ]
+    },
+    {
+      "topic": "Embeddings & vector similarity",
+      "subtopics": [
+        "Embeddings",
+        "Cosine similarity",
+        "Dot product",
+        "Euclidean distance",
+        "Embedding models"
+      ]
+    },
+    {
+      "topic": "Prompt engineering & versioning",
+      "subtopics": [
+        "Prompt anatomy",
+        "Zero-shot prompting",
+        "Few-shot prompting",
+        "Prompting patterns",
+        "In-prompt guardrails",
+        "Prompt versioning",
+        "Prompt evaluation"
+      ]
+    },
+    {
+      "topic": "RAG architecture",
+      "subtopics": [
+        "Why RAG exists",
+        "Document loading",
+        "Preprocessing",
+        "Chunking",
+        "Indexing pipeline",
+        "Retrieval scoring"
+      ]
+    },
+    {
+      "topic": "LangChain — building the RAG/LLM app layer",
+      "subtopics": [
+        "LangChain architecture",
+        "Document loaders",
+        "Text splitters",
+        "Retrievers",
+        "Chains",
+        "LCEL",
+        "Output parsers"
+      ]
+    },
+    {
+      "topic": "RAG vs fine-tuning & latency limits",
+      "subtopics": [
+        "RAG vs fine-tuning",
+        "Data freshness",
+        "Cost",
+        "Latency",
+        "Control over sources",
+        "Hybrid RAG and fine-tuning",
+        "Context window limits",
+        "Throughput bottlenecks"
+      ]
+    },
+    {
+      "topic": "Caching & rate-limit-aware API design",
+      "subtopics": [
+        "Exact-match caching",
+        "Semantic caching",
+        "Provider prompt caching",
+        "Rate limits",
+        "Backoff",
+        "Retries",
+        "Queuing"
+      ]
+    },
+    {
+      "topic": "LoRA/QLoRA adapters & model quantisation",
+      "subtopics": [
+        "LoRA",
+        "QLoRA",
+        "Full fine-tuning",
+        "Adapter-based fine-tuning",
+        "4-bit quantisation",
+        "8-bit quantisation",
+        "Quantisation tradeoffs"
+      ]
+    },
+    {
+      "topic": "Attention mechanisms",
+      "subtopics": [
+        "Attention",
+        "KV cache",
+        "RoPE",
+        "Sliding window attention",
+        "Sequential generation"
+      ]
+    },
+    {
+      "topic": "Structured outputs & hallucination reduction",
+      "subtopics": [
+        "JSON mode",
+        "Function calling",
+        "Tool calling",
+        "JSON validation",
+        "Retry mechanisms",
+        "Hallucination",
+        "Grounding",
+        "Citations",
+        "I don't know calibration"
+      ]
+    },
+    {
+      "topic": "Retrieval scoring & model evaluation",
+      "subtopics": [
+        "Dense retrieval",
+        "Sparse retrieval",
+        "BM25",
+        "MMR",
+        "Golden evaluation set",
+        "RAGAS",
+        "Faithfulness",
+        "Context relevance",
+        "Context precision",
+        "LLM-as-judge"
+      ]
+    },
+    {
+      "topic": "Guardrails & data governance",
+      "subtopics": [
+        "Input moderation",
+        "Output moderation",
+        "Policy enforcement",
+        "Direct prompt injection",
+        "Indirect prompt injection",
+        "PII detection",
+        "PII redaction",
+        "Data governance"
+      ]
+    },
+    {
+      "topic": "Deployment & observability",
+      "subtopics": [
+        "Serverless deployment",
+        "Containerised deployment",
+        "On-device deployment",
+        "LLM tracing",
+        "Prompt logging",
+        "Retrieved context logging",
+        "Tool call logging",
+        "Latency monitoring",
+        "LLM failure modes"
+      ]
+    },
+    {
+      "topic": "LangGraph — agents, state & multi-step orchestration",
+      "subtopics": [
+        "State machines",
+        "Nodes",
+        "Edges",
+        "Conditional branching",
+        "State persistence",
+        "Multi-turn workflows",
+        "Tool calling",
+        "Agent loops"
+      ]
+    },
+    {
+      "topic": "Cost, routing & fault tolerance",
+      "subtopics": [
+        "Token cost estimation",
+        "Model routing",
+        "Cheap vs expensive models",
+        "Caching",
+        "Reranking",
+        "Retries",
+        "Fallback models",
+        "Graceful degradation"
+      ]
+    }
+  ]
+}

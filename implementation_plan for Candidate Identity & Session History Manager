@@ -1,0 +1,208 @@
+# Detailed Implementation Blueprint: Candidate Identity & Session History Manager
+
+This document provides the step-by-step technical plan to implement **Component 1: Candidate Identity & Session History Manager** in your backend without changing any code today.
+
+---
+
+## 🎯 Objectives & Scope
+
+The **Candidate Identity & Session History Manager** solves two main problems:
+1. **Name Resolution**: Maps candidate names (e.g. `"Samiksha"`) to their system `user_id` (e.g. `"2071"`).
+2. **Session Discovery & Chronological Sorting**: Scans S3/ChromaDB for all interview sessions of a given `user_id`, sorts them by `session_start_time`, and retrieves the candidate's latest $N$ interviews (e.g., last 3 interviews).
+
+---
+
+## 🛠️ Architecture & Component Design
+
+```
+                     [ User Input Query / API Request ]
+                             "Samiksha" or "2071"
+                                      │
+                                      ▼
+                      ┌────────────────────────────────┐
+                      │    CandidateService            │
+                      │  - resolve_user_id()           │
+                      │  - get_candidate_profile()     │
+                      └───────────────┬────────────────┘
+                                      │
+                                      ▼
+                      ┌────────────────────────────────┐
+                      │    Session History Scanner     │
+                      │  - list_candidate_sessions()   │
+                      │  - fetch_latest_N_transcripts()│
+                      └───────────────┬────────────────┘
+                                      │
+            ┌─────────────────────────┴─────────────────────────┐
+            ▼                                                   ▼
+ ┌─────────────────────┐                             ┌─────────────────────┐
+ │  S3 Bucket Storage  │                             │  Chroma Vector Store│
+ │ (Full raw text)     │                             │ (Stored QA Chunks)  │
+ └─────────────────────┘                             └─────────────────────┘
+```
+
+---
+
+## 📁 Files & Structures to Create
+
+### 1. [NEW] Candidate Registry File: [`backend/data/candidates.json`](file:///e:/interview-intelligence-rag/backend/data/candidates.json)
+Provides a configurable mapping of candidate names to numeric S3 `user_id`s:
+
+```json
+[
+  {
+    "user_id": "2071",
+    "name": "Samiksha",
+    "email": "samiksha@example.com",
+    "created_at": "2026-01-15T00:00:00Z"
+  }
+]
+```
+
+---
+
+### 2. [NEW] Data Models: [`backend/app/models/candidate_schemas.py`](file:///e:/interview-intelligence-rag/backend/app/models/candidate_schemas.py)
+Pydantic schemas for strong typing across API and internal services:
+
+```python
+from datetime import datetime
+from typing import Optional
+from pydantic import BaseModel, Field
+
+class CandidateProfile(BaseModel):
+    user_id: str
+    name: str
+    email: Optional[str] = None
+
+class CandidateSessionMeta(BaseModel):
+    session_id: str
+    user_id: str
+    bot_id: str
+    source_key: str
+    session_start_time: Optional[datetime] = None
+    file_size_bytes: int = 0
+
+class CandidateHistoryResponse(BaseModel):
+    candidate: CandidateProfile
+    total_sessions_found: int
+    sessions: list[CandidateSessionMeta]
+```
+
+---
+
+### 3. [NEW] Service Class: [`backend/app/services/candidate_service.py`](file:///e:/interview-intelligence-rag/backend/app/services/candidate_service.py)
+
+#### Logic Workflow & Core Methods:
+
+```python
+import json
+from pathlib import Path
+from typing import Optional
+
+from app.config import DATA_DIR
+from app.ingestion.metadata_extractor import extract_s3_metadata, extract_session_start_time
+from app.services.s3_service import S3Service
+
+
+class CandidateService:
+    def __init__(self, s3_service: Optional[S3Service] = None, registry_path: Optional[Path] = None):
+        self.s3_service = s3_service or S3Service()
+        self.registry_path = registry_path or (DATA_DIR / "candidates.json")
+        self._load_registry()
+
+    def _load_registry(self) -> None:
+        """Load candidate name <-> user_id registry from JSON."""
+        if self.registry_path.exists():
+            with open(self.registry_path, "r", encoding="utf-8") as f:
+                self.candidates = json.load(f)
+        else:
+            self.candidates = []
+
+    def resolve_user_id(self, query_or_name: str) -> Optional[str]:
+        """
+        Find user_id given a candidate name or user_id string.
+        - If query_or_name is already a numeric ID (e.g. "2071"), return it directly.
+        - Otherwise perform case-insensitive name lookup (e.g. "Samiksha" -> "2071").
+        """
+        clean_query = query_or_name.strip()
+        if clean_query.isdigit():
+            return clean_query
+
+        for candidate in self.candidates:
+            if candidate["name"].lower() == clean_query.lower():
+                return candidate["user_id"]
+        return None
+
+    def get_candidate_sessions(self, user_id: str, limit: int = 3) -> list[dict]:
+        """
+        1. List all transcript objects in S3 under simulation_training/{user_id}/
+        2. Extract metadata and session_start_time for each object
+        3. Sort sessions chronologically (newest first)
+        4. Return top `limit` (e.g. latest 3) session metadata dictionaries
+        """
+        prefix = f"simulation_training/{user_id}/"
+        objects = self.s3_service.list_objects(prefix=prefix)
+
+        transcripts = [o for o in objects if o["Key"].endswith("_transcript.txt")]
+
+        session_list = []
+        for obj in transcripts:
+            meta = extract_s3_metadata(obj["Key"])
+            
+            # Fetch raw text snippet to parse session timestamp if needed
+            raw_bytes = self.s3_service.get_object(obj["Key"])
+            raw_text = raw_bytes.decode("utf-8", errors="ignore")
+            start_time = extract_session_start_time(raw_text)
+
+            meta["session_start_time"] = start_time or obj.get("LastModified")
+            meta["raw_text"] = raw_text
+            meta["size"] = obj.get("Size", 0)
+
+            session_list.append(meta)
+
+        # Sort chronologically (newest first)
+        session_list.sort(
+            key=lambda s: s["session_start_time"] or datetime.min, 
+            reverse=True
+        )
+
+        return session_list[:limit]
+```
+
+---
+
+### 4. [MODIFY] Update [`backend/app/api/routes.py`](file:///e:/interview-intelligence-rag/backend/app/api/routes.py)
+Add dedicated candidate endpoints to test session retrieval without running LLM evaluation:
+
+```python
+# GET /api/v1/candidate/{name_or_id}/history?limit=3
+@router.get("/candidate/{query}/history")
+def get_candidate_history(query: str, limit: int = 3):
+    candidate_service = CandidateService()
+    user_id = candidate_service.resolve_user_id(query)
+    if not user_id:
+        raise HTTPException(status_code=404, detail=f"Candidate '{query}' not found")
+    
+    sessions = candidate_service.get_candidate_sessions(user_id, limit=limit)
+    return {
+        "candidate_query": query,
+        "resolved_user_id": user_id,
+        "total_sessions": len(sessions),
+        "sessions": sessions
+    }
+```
+
+---
+
+## 🧪 Verification Plan for Component 1
+
+### 1. Unit Test (`backend/test_candidate_service.py`)
+Write a unit test to verify:
+- Name resolution (`"Samiksha"` $\rightarrow$ `"2071"`).
+- S3 session filtering under prefix `simulation_training/2071/`.
+- Correct sorting by session timestamp.
+
+### 2. Manual API Test
+1. Start API server: `uvicorn app.main:app --reload`
+2. Test endpoint:
+   `GET http://localhost:8000/api/v1/candidate/Samiksha/history?limit=3`
+3. Verify response lists Samiksha's last 3 interview sessions with `session_id`, `session_start_time`, and S3 keys.

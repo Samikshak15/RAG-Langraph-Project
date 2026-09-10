@@ -1,0 +1,77 @@
+# Implementation Plan: Next Steps for Candidate Interview Intelligence
+
+Now that your MongoDB candidate discovery (`GET /api/v1/candidates`) is returning 100% correct live data for your candidates (e.g., *Sejal Sawant*, *Khushi Kishor Pawar*, *NEHA KADTANE*), this plan outlines the next 3 logical steps to complete the system.
+
+**No code in your codebase will be changed today.**
+
+---
+
+## 🗺️ Next Steps Roadmap Overview
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│ STEP 1: Candidate S3 Transcript Batch Ingestion & Vector Indexing       │
+│ Download & process completed S3 transcripts into ChromaDB per user_id  │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│ STEP 2: Natural Language RAG Q&A Engine for Multi-Interview Analysis   │
+│ Answer targeted recruiter queries about candidate weaknesses & trends   │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│ STEP 3: React Frontend Candidate Intelligence Dashboard UI              │
+│ Build Candidate Selector, Radar Charts, Score Trends, & Q&A Chat View  │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 📌 Detailed Breakdown of Next Steps
+
+### STEP 1: Candidate S3 Transcript Batch Ingestion Endpoint
+- **Goal**: Ingest real S3 interview transcripts for any selected candidate into ChromaDB vector store.
+- **Proposed Endpoint**: `POST /api/v1/candidate/{user_id}/ingest`
+- **Workflow**:
+  1. Look up candidate's completed sessions from MongoDB `auth_app_t_request`.
+  2. Download raw transcript files from S3 (`simulation_training/{user_id}/{bot_id}/{session_id}/...`).
+  3. Parse Q&A turns, classify topics against curriculum, and run LLM evaluation (`AnswerEvaluator`).
+  4. Upsert Q&A embeddings into ChromaDB tagged with `user_id`.
+
+---
+
+### STEP 2: Advanced RAG Q&A Engine for Candidates
+- **Goal**: Allow recruiters to ask natural language questions about any candidate across their interview history.
+- **Example Queries**:
+  - *"Why did Sejal struggle with vector similarity questions in session 2?"*
+  - *"Did Khushi improve her system design scores between interview 1 and interview 3?"*
+  - *"What are Neha's top 3 strengths and top 3 weaknesses?"*
+- **Proposed Endpoint**: `POST /api/v1/candidate/query`
+- **Workflow**:
+  1. Retrieve candidate's vector chunks from ChromaDB (`where={"user_id": user_id}`).
+  2. Re-rank retrieved chunks using cross-encoder reranker.
+  3. Synthesize context using LLM pass into an actionable response.
+
+---
+
+### STEP 3: React Frontend Candidate Intelligence Dashboard UI
+- **Goal**: Provide a premium visual interface in your React frontend (`frontend/src/`).
+- **UI Components to Build**:
+  1. **Candidate Dropdown & Search Bar**: Displays real MongoDB candidates (Sejal Sawant, Khushi Pawar, Neha Kadtane, etc.) with search filter.
+  2. **Candidate Profile Card**: Displays total sessions, email, overall score, and performance trend badge.
+  3. **Repeated Mistakes & Knowledge Gaps View**: Renders recurring wrong answers and missing concepts with collapsible details.
+  4. **Recommended Topics Visualizer**: Renders prioritized curriculum topics to work on.
+  5. **Interactive Candidate Q&A Chat Window**: Recruiter chat interface.
+
+---
+
+## 🧪 Verification Plan for Next Steps
+
+1. **Step 1 Ingestion Verification**:
+   - Run ingestion for candidate `1797` (Sejal Sawant). Verify ChromaDB collection count increases and metadata includes `user_id: "1797"`.
+2. **Step 2 Q&A Verification**:
+   - Send natural language query to `/api/v1/candidate/query` for candidate `1797`. Verify answer cites specific session Q&A turns.
+3. **Step 3 UI Verification**:
+   - Launch frontend (`npm run dev`) and test candidate selection, score trend charts, and Q&A chat view in browser.

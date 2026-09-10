@@ -1,0 +1,190 @@
+# Implementation Plan: Pre-LangGraph Foundation for Interview Intelligence RAG
+
+This implementation plan outlines all required core capabilities that must be built **before** introducing LangGraph. By building these foundational backend components first, the system will gain full multi-interview pattern detection, candidate-filtered RAG retrieval, and structured performance reporting via standard Python services and REST API endpoints.
+
+**No codebase files will be edited until you approve this plan.**
+
+---
+
+## Architecture Overview (Pre-LangGraph Stack)
+
+```
+[Candidate Query / API Request]
+          │
+          ▼
+┌───────────────────────────────────────────────────────────┐
+│ 1. Candidate Identity & Multi-Session Resolver           │
+│    (Maps Candidate Name -> user_id & lists last N S3 keys)│
+└─────────────────────────┬─────────────────────────────────┘
+                          │
+                          ▼
+┌───────────────────────────────────────────────────────────┐
+│ 2. Candidate Vector & S3 Retriever                       │
+│    (Filters ChromaDB & fetches last N full transcripts)  │
+└─────────────────────────┬─────────────────────────────────┘
+                          │
+                          ▼
+┌───────────────────────────────────────────────────────────┐
+│ 3. Multi-Interview Comparison & Pattern Engine            │
+│    - Repeated Wrong Answers & Misunderstandings          │
+│    - Recurring Technical Gaps & Missing Concepts          │
+│    - Score Trends (Improving / Stagnant / Regressing)    │
+│    - Prioritized "Topics to Work On"                     │
+└─────────────────────────┬─────────────────────────────────┘
+                          │
+                          ▼
+┌───────────────────────────────────────────────────────────┐
+│ 4. Candidate Performance Report Generator                │
+│    (Generates structured JSON / Markdown analysis)        │
+└───────────────────────────────────────────────────────────┘
+```
+
+---
+
+## What Needs To Be Implemented Before LangGraph
+
+### 1. Candidate Identity & Session History Manager
+- **Current Limitation**: Transcripts in S3 use numeric folder IDs (e.g. `simulation_training/2071/...`), and metadata only stores `user_id`. There is no way to query by candidate name (e.g. *"Samiksha"*).
+- **Required Implementation**:
+  - `app/services/candidate_service.py`:
+    - Maintains a registry / mapping of `candidate_name` $\leftrightarrow$ `user_id`.
+    - Scans S3 for all interview sessions for a candidate (`user_id`).
+    - Sorts sessions by `session_start_time` and returns the latest $N$ sessions.
+
+### 2. Multi-Session S3 & Chroma Retrieval Helper
+- **Current Limitation**: `Retriever.search()` queries ChromaDB globally without candidate filtering. `S3Service` can only fetch a single file at a time.
+- **Required Implementation**:
+  - `app/services/s3_service.py`: Add `get_candidate_sessions(user_id: str, limit: int = 3)` to list and download raw transcripts for a candidate's latest $N$ interviews.
+  - `app/rag/retriever.py`: Add `search_candidate_chunks(user_id: str, query: str, n_results: int = 10)` using Chroma metadata `where={"user_id": user_id}`.
+
+### 3. Multi-Interview Comparison & Pattern Analytics Engine
+- **Current Limitation**: [comparison.py](file:///e:/interview-intelligence-rag/backend/app/analysis/comparison.py) is 0 bytes and [weakness.py](file:///e:/interview-intelligence-rag/backend/app/analysis/weakness.py) is empty. Evaluations are performed strictly per individual Q&A turn.
+- **Required Implementation**:
+  - Build `app/analysis/comparison.py` with `MultiInterviewAnalyzer`:
+    1. **Repeated Mistakes Detection**: Compares low scores ($<5/10$) across sessions to catch questions/topics where candidate repeatedly failed.
+    2. **Recurring Technical Gaps**: Aggregates `missing_concepts` lists from all evaluated Q&A pairs across sessions and ranks most frequent gaps.
+    3. **Score Trend & Progress Analysis**: Calculates average score per session and identifies whether candidate is improving, stagnant, or regressing.
+    4. **Recommended "Topics to Work On"**: Ranks curriculum subtopics by error frequency and severity.
+
+### 4. Structured Performance Report Generator
+- **Current Limitation**: Pipeline only produces single-session stats (total questions, avg score, topics covered).
+- **Required Implementation**:
+  - `app/analysis/report_generator.py`: Accepts multi-session metrics and generates a comprehensive report payload:
+    - Candidate Profile & Sessions Analyzed
+    - Performance Trend Summary
+    - Demonstrated Technical Strengths
+    - Recurring Weaknesses & Repeated Errors
+    - Critical Knowledge Gaps (Missing Concepts)
+    - Ranked "Topics to Work On"
+
+### 5. Candidate Analysis REST API Endpoint
+- **Current Limitation**: Only single-transcript `/pipeline/run` and raw vector `/search` endpoints exist.
+- **Required Implementation**:
+  - Add `POST /api/v1/candidate/analyze` in [routes.py](file:///e:/interview-intelligence-rag/backend/app/api/routes.py):
+    ```json
+    // Request
+    {
+      "candidate_name": "Samiksha",
+      "user_id": "2071",
+      "num_interviews": 3,
+      "query": "What are Samiksha's main weaknesses across her last 3 interviews?"
+    }
+    ```
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]
+> **No code changes were made.** This plan defers LangGraph completely and focuses 100% on building the core Python analytical engine and REST services first.
+
+> [!NOTE]
+> **Candidate Mapping Strategy**: Should `candidate_name` be passed dynamically in API requests alongside `user_id`, or stored in a JSON configuration file (e.g. `data/candidates.json`)?
+
+---
+
+## Proposed Technical Implementation Details
+
+### Phase 1: Candidate & S3 Multi-Session Services
+
+#### [NEW] [candidate_service.py](file:///e:/interview-intelligence-rag/backend/app/services/candidate_service.py)
+```python
+# Functionality:
+# 1. Resolve candidate_name -> user_id (e.g., "Samiksha" -> "2071")
+# 2. List candidate's S3 transcript keys sorted by timestamp
+# 3. Retrieve latest N session metadata dictionaries
+```
+
+#### [MODIFY] [s3_service.py](file:///e:/interview-intelligence-rag/backend/app/services/s3_service.py)
+```python
+# Add helper:
+def fetch_latest_candidate_transcripts(self, user_id: str, limit: int = 3) -> list[dict]:
+    # Returns list of {"session_id": ..., "s3_key": ..., "raw_text": ...}
+```
+
+---
+
+### Phase 2: Core Analytics & Pattern Engine
+
+#### [MODIFY] [weakness.py](file:///e:/interview-intelligence-rag/backend/app/analysis/weakness.py)
+```python
+# Aggregates weakness strings and missing_concepts across multiple sessions
+def aggregate_candidate_weaknesses(session_records: list[dict]) -> dict:
+    # Frequency counting & clustering of recurring technical gaps
+```
+
+#### [MODIFY] [comparison.py](file:///e:/interview-intelligence-rag/backend/app/analysis/comparison.py)
+```python
+class MultiInterviewAnalyzer:
+    def compare_sessions(self, sessions_data: list[dict]) -> dict:
+        # Returns:
+        # - repeated_wrong_answers: list of questions/topics with recurring low scores
+        # - recurring_missing_concepts: top missing concepts across sessions
+        # - score_trend: session-by-session average scores & direction
+        # - topics_to_improve: prioritized curriculum topics
+```
+
+#### [NEW] [report_generator.py](file:///e:/interview-intelligence-rag/backend/app/analysis/report_generator.py)
+```python
+def generate_candidate_report(candidate_name: str, analysis: dict) -> dict:
+    # Uses LLM pass to synthesize raw pattern dict into clean structured executive summary
+```
+
+---
+
+### Phase 3: Retriever & API Layer
+
+#### [MODIFY] [retriever.py](file:///e:/interview-intelligence-rag/backend/app/rag/retriever.py)
+```python
+# Add candidate-filtered search method
+def search_candidate(self, query: str, user_id: str, n_results: int = 5) -> list[dict]:
+    # Chroma query with where={"user_id": user_id} filter
+```
+
+#### [MODIFY] [routes.py](file:///e:/interview-intelligence-rag/backend/app/api/routes.py)
+- Add `POST /api/v1/candidate/analyze` endpoint.
+- Add `GET /api/v1/candidate/{user_id}/sessions` endpoint.
+
+---
+
+## Verification Plan
+
+### Automated Tests
+1. **Candidate Service Test**: `pytest backend/test_candidate_service.py` to verify candidate lookup and S3 session listing.
+2. **Comparison Analytics Test**: `pytest backend/test_comparison.py` using synthetic multi-session data to verify pattern detection for repeated wrong answers and missing concepts.
+3. **Candidate RAG Search Test**: `pytest backend/test_candidate_rag.py` to verify filtered vector retrieval per candidate.
+
+### Manual Verification
+1. Run backend server: `python -m uvicorn app.main:app --reload`
+2. Test `/api/v1/candidate/analyze` endpoint with candidate query:
+   ```json
+   {
+     "candidate_name": "Samiksha",
+     "user_id": "2071",
+     "num_interviews": 3
+   }
+   ```
+3. Check returned JSON payload to confirm:
+   - Repeated wrong answers identified.
+   - Recurring technical gaps listed.
+   - Prioritized "Topics to Work On" generated.

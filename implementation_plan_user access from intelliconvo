@@ -1,0 +1,175 @@
+# Implementation Blueprint: Connecting IntelliConvo MongoDB Collections to RAG Pipeline
+
+This document details how your existing **IntelliConvo MongoDB Database** (`auth_app_t_user` and `auth_app_t_request`) integrates into your **Interview Intelligence RAG Application**.
+
+**No code in your codebase will be changed today.**
+
+---
+
+## 🏗️ Architecture & Data Flow Overview
+
+```
+                      [ User Input Query ]
+    "What are Nayan's main weaknesses across his last 3 interviews?"
+                                │
+                                ▼
+ ┌─────────────────────────────────────────────────────────────────┐
+ │ 1. Candidate Identity Resolver (MongoDB: auth_app_t_user)        │
+ │    Find user_id for "Nayan" -> user_id = "1756"                 │
+ └──────────────────────────────┬──────────────────────────────────┘
+                                │
+                                ▼
+ ┌─────────────────────────────────────────────────────────────────┐
+ │ 2. Session Discovery & Status Tracker (MongoDB: auth_app_t_request)│
+ │    Find completed sessions for user_id "1756"                   │
+ │    Status: "Process Completed" -> [Session 1, Session 2, Session 3]│
+ └──────────────────────────────┬──────────────────────────────────┘
+                                │
+                                ▼
+ ┌─────────────────────────────────────────────────────────────────┐
+ │ 3. Context Retrieval Layer (S3 & ChromaDB)                       │
+ │    - S3: Fetch raw transcripts (simulation_training/1756/...)   │
+ │    - ChromaDB: Vector search Q&A chunks (where={"user_id":"1756"})│
+ └──────────────────────────────┬──────────────────────────────────┘
+                                │
+                                ▼
+ ┌─────────────────────────────────────────────────────────────────┐
+ │ 4. Multi-Interview Comparison Engine                            │
+ │    Analyze recurring wrong answers, technical gaps, & trends    │
+ └──────────────────────────────┬──────────────────────────────────┘
+                                │
+                                ▼
+ ┌─────────────────────────────────────────────────────────────────┐
+ │ 5. Structured Candidate Performance Report Generator            │
+ │    Generate Strengths, Weaknesses, Gaps, & Topics To Work On    │
+ └─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🗄️ MongoDB Collections & How They Connect to RAG
+
+### 1. `auth_app_t_user` (`collection_user`) $\rightarrow$ Candidate Name Resolver
+
+* **Collection Name**: `auth_app_t_user`
+* **Key Fields**: `user_id`, `first_name`, `last_name`, `user_email`, `organisation_id`, `customer_id`
+* **Role in RAG Pipeline**:
+  Replaces static JSON files (`candidates.json`) with live database lookups across all 200+ candidates.
+
+#### Connection Logic (`CandidateService.resolve_user_id`):
+```python
+def resolve_user_id_from_mongo(query_name: str, mongo_db) -> str | None:
+    """
+    Look up user_id in MongoDB collection auth_app_t_user matching first_name or last_name.
+    """
+    # 1. If query is already a numeric string (e.g. "1756"), return directly
+    if query_name.isdigit():
+        return query_name
+
+    # 2. Case-insensitive regex match against first_name or last_name
+    regex_pattern = {"$regex": f"^{query_name.strip()}$", "$options": "i"}
+    user_doc = mongo_db["auth_app_t_user"].find_one({
+        "$or": [
+            {"first_name": regex_pattern},
+            {"last_name": regex_pattern},
+            {"username": regex_pattern}
+        ]
+    })
+
+    if user_doc:
+        return str(user_doc.get("user_id"))
+    return None
+```
+
+---
+
+### 2. `auth_app_t_request` (`intelliconvo_request`) $\rightarrow$ Session History & Status Tracker
+
+* **Collection Name**: `auth_app_t_request`
+* **Key Fields**: `user_id`, `session_id`, `input_id`, `process_status`, `average_maximum_score`, `created_at`
+* **Role in RAG Pipeline**:
+  Provides instant session tracking and status answers without scanning the entire S3 bucket manually.
+
+#### Connection Logic (`CandidateService.get_candidate_sessions`):
+```python
+def get_candidate_sessions_from_mongo(user_id: str, limit: int = 3, mongo_db=None) -> list[dict]:
+    """
+    Fetch the latest N completed interview sessions for user_id from MongoDB.
+    """
+    # Query MongoDB for sessions belonging to user_id
+    cursor = mongo_db["auth_app_t_request"].find(
+        {
+            "user_id": user_id,
+            "process_status": "Process Completed" # Only finished interviews
+        }
+    ).sort("created_at", -1).limit(limit)
+
+    sessions = []
+    for doc in cursor:
+        session_id = doc["session_id"]
+        bot_id = doc.get("bot_id", "358")
+        
+        # Build S3 key path dynamically
+        s3_key = f"simulation_training/{user_id}/{bot_id}/{session_id}/{session_id}_transcript.txt"
+        
+        sessions.append({
+            "session_id": session_id,
+            "user_id": user_id,
+            "bot_id": bot_id,
+            "source_key": s3_key,
+            "process_status": doc.get("process_status"),
+            "overall_ai_score": doc.get("average_maximum_score"),
+            "session_start_time": doc.get("created_at")
+        })
+
+    return sessions
+```
+
+---
+
+## 🛠️ Step-by-Step Implementation Roadmap
+
+### Step 1: Update MongoDB Connection Helper
+Modify [`backend/app/services/mongo_service.py`](file:///e:/interview-intelligence-rag/backend/app/services/mongo_service.py) (currently 0 bytes) to initialize connection to IntelliConvo MongoDB:
+```python
+# app/services/mongo_service.py
+from pymongo import MongoClient
+from app.config import INTELLICONVO_URI, INTELLICONVO_DB_NAME
+
+class MongoService:
+    def __init__(self):
+        self.client = MongoClient(INTELLICONVO_URI)
+        self.db = self.client[INTELLICONVO_DB_NAME]
+        self.users_col = self.db["auth_app_t_user"]
+        self.requests_col = self.db["auth_app_t_request"]
+```
+
+### Step 2: Connect `CandidateService` to MongoDB
+Update `CandidateService` in [`candidate_service.py`](file:///e:/interview-intelligence-rag/backend/app/services/candidate_service.py):
+1. `resolve_user_id`: Queries `auth_app_t_user` collection by `first_name`/`last_name`.
+2. `get_candidate_sessions`: Queries `auth_app_t_request` collection for candidate's latest $N$ completed sessions.
+
+### Step 3: Connect RAG Context Fetcher & Multi-Interview Analyzer
+1. Fetch full raw transcripts from S3 for the $N$ sessions returned by MongoDB.
+2. Query ChromaDB vector chunks filtered by `where={"user_id": user_id}`.
+3. Feed session Q&A evaluations to `MultiInterviewAnalyzer` ([`comparison.py`](file:///e:/interview-intelligence-rag/backend/app/analysis/comparison.py)) to aggregate:
+   * **Repeated Wrong Answers**
+   * **Recurring Technical Gaps**
+   * **Topics To Work On**
+
+---
+
+## 📋 Example End-to-End Query Scenarios
+
+### Scenario A: User asks *"What is Nayan's interview status?"*
+1. MongoDB `auth_app_t_user` resolves `"Nayan"` $\rightarrow$ `user_id: 1756`.
+2. MongoDB `auth_app_t_request` retrieves latest record for `user_id: 1756`:
+   * `process_status`: `"Process Completed"`
+   * `average_maximum_score`: `8.2`
+3. Response: `"Nayan's latest interview is Completed with an overall score of 8.2/10."`
+
+### Scenario B: User asks *"What are Samiksha's main weaknesses across her last 3 interviews?"*
+1. MongoDB `auth_app_t_user` resolves `"Samiksha"` $\rightarrow$ `user_id: 2071`.
+2. MongoDB `auth_app_t_request` retrieves last 3 completed `session_id`s.
+3. S3 & ChromaDB fetch Q&A chunks for those 3 sessions.
+4. `MultiInterviewAnalyzer` aggregates weaknesses across all 3 sessions and returns structured performance report.

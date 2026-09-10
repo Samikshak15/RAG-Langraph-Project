@@ -1,0 +1,193 @@
+# Implementation Plan: Step 1 - Candidate S3 Transcript Batch Ingestion & Vector Indexing
+
+This implementation plan details the technical architecture and step-by-step blueprint for **Step 1: Candidate S3 Transcript Batch Ingestion & Vector Indexing**. 
+
+By completing this step, raw interview transcript text files stored in AWS S3 for any candidate (e.g., *Sejal Sawant*, *Khushi Pawar*, *1797*) will be automatically downloaded, parsed into Q&A turns, evaluated against your curriculum, embedded into vectors, and stored in ChromaDB.
+
+**No code in your codebase will be changed today.**
+
+---
+
+## 🏗️ Data Flow & Architecture
+
+```
+[ POST /api/v1/candidate/{query}/ingest ]
+ (e.g., query="Sejal Sawant" or "1797")
+                   │
+                   ▼
+┌───────────────────────────────────────────────────────────┐
+│ 1. Identity & Session Resolution                          │
+│    - CandidateService.resolve_user_id("Sejal Sawant") -> "1797"│
+│    - CandidateService.get_candidate_sessions("1797") -> S3 keys│
+└──────────────────────────┬────────────────────────────────┘
+                           │
+                           ▼
+┌───────────────────────────────────────────────────────────┐
+│ 2. S3 Transcript Download & Parser                       │
+│    For each S3 key (simulation_training/1797/358/...):    │
+│    - Download raw bytes via S3Service.get_object          │
+│    - Parse turns via transcript_parser.py                 │
+│    - Extract QA pairs via extract_qa_pairs                │
+└──────────────────────────┬────────────────────────────────┘
+                           │
+                           ▼
+┌───────────────────────────────────────────────────────────┐
+│ 3. Topic Classification & Answer Evaluation              │
+│    For each Q&A turn:                                     │
+│    - TopicClassifier.classify(question, answer)           │
+│    - AnswerEvaluator.evaluate(question, answer, topic)    │
+│      -> score (0-10), strengths, weaknesses, missing_concepts│
+└──────────────────────────┬────────────────────────────────┘
+                           │
+                           ▼
+┌───────────────────────────────────────────────────────────┐
+│ 4. Vector Embedding & ChromaDB Storage                    │
+│    - build_enriched_records & build_chunks                │
+│    - EmbeddingService.embed_batch(chunk_texts)            │
+│    - ChromaService.add_chunks(chunks, embeddings)         │
+│      Tagged with metadata: where={"user_id": "1797"}       │
+└───────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 📌 Proposed Technical Changes
+
+### 1. New Ingestion Endpoint in [`routes.py`](file:///e:/interview-intelligence-rag/backend/app/api/routes.py)
+Endpoint Contract: `POST /api/v1/candidate/{query}/ingest`
+- **Path Parameter**: `query` (candidate display name like `"Sejal Sawant"` or numeric `user_id` like `"1797"`)
+- **Query Parameter**: `limit: int = 3` (number of recent interviews to ingest)
+
+#### Request Example:
+```http
+POST http://localhost:8000/api/v1/candidate/Sejal Sawant/ingest?limit=3
+```
+
+#### Response Example Payload:
+```json
+{
+  "status": "success",
+  "candidate_name": "Sejal Sawant",
+  "resolved_user_id": "1797",
+  "sessions_found": 3,
+  "sessions_ingested": 3,
+  "total_qa_pairs_evaluated": 24,
+  "chunks_stored_in_chroma": 24,
+  "collection_count_after_ingestion": 48
+}
+```
+
+---
+
+### 2. Implementation in [`pipeline_service.py`](file:///e:/interview-intelligence-rag/backend/app/services/pipeline_service.py)
+Add a function `ingest_candidate_s3_transcripts(user_id: str, limit: int = 3, embedding_service=..., chroma_service=...)`:
+
+```python
+def ingest_candidate_s3_transcripts(
+    user_id: str,
+    limit: int,
+    embedding_service: EmbeddingService,
+    chroma_service: ChromaService,
+) -> dict:
+    candidate_service = CandidateService()
+    sessions = candidate_service.get_candidate_sessions(user_id, limit=limit)
+    
+    if not sessions:
+        raise ValueError(f"No completed interview sessions found for user_id {user_id}")
+
+    classifier = TopicClassifier(CURRICULUM_PATH)
+    evaluator = AnswerEvaluator()
+    s3_service = S3Service()
+
+    total_chunks = 0
+    total_qa = 0
+
+    for s_meta in sessions:
+        s3_key = s_meta["source_key"]
+        raw_bytes = s3_service.get_object(s3_key)
+        raw_text = raw_bytes.decode("utf-8", errors="ignore")
+
+        turns = parse_transcript(raw_text)
+        qa_pairs = extract_qa_pairs(turns)
+
+        for qa in qa_pairs:
+            classification = classifier.classify(qa["question"], qa["answer"])
+            qa["topic"] = classification["topic"]
+            qa["subtopic"] = classification["subtopic"]
+            qa["evaluation"] = evaluator.evaluate(
+                qa["question"], qa["answer"], topic=qa["topic"], subtopic=qa["subtopic"]
+            )
+
+        metadata = {
+            "user_id": s_meta["user_id"],
+            "bot_id": s_meta["bot_id"],
+            "session_id": s_meta["session_id"],
+            "session_start_time": s_meta.get("session_start_time"),
+            "source_key": s3_key,
+        }
+
+        records = build_enriched_records(qa_pairs, metadata)
+        chunks = build_chunks(records)
+
+        embeddings = embedding_service.embed_batch([c["text"] for c in chunks])
+        chroma_service.add_chunks(chunks, embeddings)
+
+        total_qa += len(qa_pairs)
+        total_chunks += len(chunks)
+
+    return {
+        "user_id": user_id,
+        "sessions_processed": len(sessions),
+        "total_qa_evaluated": total_qa,
+        "chunks_stored": total_chunks,
+        "total_chroma_collection_count": chroma_service.collection.count(),
+    }
+```
+
+---
+
+## 🔍 How to Check If It Is Working (Verification Steps)
+
+Once implemented, you can verify that the feature is working 100% using **3 simple methods**:
+
+### Method 1: Check Stats Before & After Ingestion
+1. Open your browser or API client (Postman/cURL) and check initial vector store stats:
+   ```http
+   GET http://localhost:8000/api/v1/stats
+   ```
+   *Note down `total_chunks` (e.g. `24`).*
+
+2. Trigger the ingestion endpoint for candidate **Sejal Sawant** (`1797`):
+   ```http
+   POST http://localhost:8000/api/v1/candidate/Sejal Sawant/ingest?limit=3
+   ```
+
+3. Call `GET http://localhost:8000/api/v1/stats` again.
+   *Verify that `total_chunks` increased (e.g. from `24` to `48`).*
+
+---
+
+### Method 2: Inspect Stored Chunks in Vector Store API
+Call the chunk listing API:
+```http
+GET http://localhost:8000/api/v1/chunks?limit=10
+```
+- **Verification**: Check that returned chunk metadata contains:
+  * `"user_id": "1797"`
+  * `"session_id"` (matching Sejal's session ID)
+  * `"topic"`, `"subtopic"`, and evaluated `"score"`.
+
+---
+
+### Method 3: Run Candidate-Filtered Vector Search
+Search for specific interview topics asked during Sejal's interviews:
+```http
+POST http://localhost:8000/api/v1/search
+Content-Type: application/json
+
+{
+  "query": "vector similarity and embeddings",
+  "n_results": 5
+}
+```
+- **Verification**: Check that the search results include Q&A turns retrieved from candidate `1797`'s transcripts!
